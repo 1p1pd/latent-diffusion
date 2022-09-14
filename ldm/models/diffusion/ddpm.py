@@ -700,6 +700,11 @@ class LatentDiffusion(DDPM):
             out.extend([x, xrec])
         if return_original_cond:
             out.append(xc)
+        if self.cond_stage_key == 'masked_image':
+            cc = super().get_input(batch, 'mask').to(self.device)
+            cc = torch.nn.functional.interpolate(cc, size=c.shape[-2:])
+            c = torch.cat((c, cc[:, :1, :, :]), dim=1)
+            out = [z, c]
         return out
 
     @torch.no_grad()
