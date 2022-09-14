@@ -70,19 +70,19 @@ model:
 data:
   target: main.DataModuleFromConfig
   params:
-    batch_size: 1
+    batch_size: 48
     num_workers: 5
     wrap: False
     train:
       target: ldm.data.tex.TexTrain
       params:
-        img_path: /home/yifan1/Desktop/ngp-jax/data/gravel_800.jpg
+        img_path: data/gravel_800.jpg
         size: 256
         n_img: 10000
     validation:
       target: ldm.data.tex.TexValidation
       params:
-        img_path: /home/yifan1/Desktop/ngp-jax/data/gravel_800.jpg
+        img_path: data/gravel_800.jpg
         size: 256
         n_img: 100
 
