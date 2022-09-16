@@ -78,13 +78,13 @@ data:
       params:
         img_path: data/gravel_800.jpg
         size: 256
-        n_img: 10000
+        n_img: 100000
     validation:
       target: ldm.data.tex.TexValidation
       params:
         img_path: data/gravel_800.jpg
         size: 256
-        n_img: 100
+        n_img: 2000
 
 lightning:
   callbacks:
