@@ -30,6 +30,22 @@ def make_batch(image, img_path, device):
         batch[k] = batch[k]*2.0-1.0
     return batch
 
+def make_batch_v(image, device):
+    image = image.astype(np.float32) / 255.
+    image = image[None].transpose(0,3,1,2)
+    image = torch.from_numpy(image)
+
+    mask = torch.zeros_like(image)
+    mask[:, :, 128:, :] = 1.
+
+    masked_image = (1. - mask) * image
+
+    batch = {"image": image, "mask": mask, "masked_image": masked_image}
+    for k in batch:
+        batch[k] = batch[k].to(device=device)
+        batch[k] = batch[k]*2.0-1.0
+    return batch
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -62,37 +78,45 @@ if __name__ == "__main__":
     model = model.to(device)
     sampler = DDIMSampler(model)
 
-    n_img = 10
+    n_img = 7
     img_prev = None
     os.makedirs(opt.outdir, exist_ok=True)
+    img_out = np.zeros((256 + 128 * (n_img - 1), 256 + 128 * (n_img - 1), 3), dtype=np.uint8)
     with torch.no_grad():
         with model.ema_scope():
-            for i in tqdm(range(n_img)):
-                outpath = os.path.join(opt.outdir, '{:02d}.png'.format(i))
-                batch = make_batch(img_prev, opt.img_path, device=device)
+            for j in tqdm(range(n_img)):
+                for i in range(n_img):
+                    outpath = os.path.join(opt.outdir, '{:02d}.png'.format(j * n_img + i))
+                    if j == 0:
+                        batch = make_batch(img_prev, opt.img_path, device=device)
+                    else:
+                        img_up = img_out[j*128:j*128+256, i*128:i*128+256, :].copy()
+                        batch = make_batch_v(img_up, device=device)
 
-                # encode masked image and concat downsampled mask
-                c = model.cond_stage_model.encode(batch["masked_image"])
-                cc = torch.nn.functional.interpolate(batch["mask"],
-                                                     size=c.shape[-2:])
-                c = torch.cat((c, cc[:, :1, ...]), dim=1)
+                    # encode masked image and concat downsampled mask
+                    c = model.cond_stage_model.encode(batch["masked_image"])
+                    cc = torch.nn.functional.interpolate(batch["mask"],
+                                                         size=c.shape[-2:])
+                    c = torch.cat((c, cc[:, :1, ...]), dim=1)
 
-                shape = (c.shape[1]-1,)+c.shape[2:]
-                samples_ddim, _ = sampler.sample(S=opt.steps,
-                                                 conditioning=c,
-                                                 batch_size=c.shape[0],
-                                                 shape=shape,
-                                                 verbose=False)
-                x_samples_ddim = model.decode_first_stage(samples_ddim)
-                img_prev = x_samples_ddim.detach().clone()
+                    shape = (c.shape[1]-1,)+c.shape[2:]
+                    samples_ddim, _ = sampler.sample(S=opt.steps,
+                                                     conditioning=c,
+                                                     batch_size=c.shape[0],
+                                                     shape=shape,
+                                                     verbose=False)
+                    x_samples_ddim = model.decode_first_stage(samples_ddim)
+                    img_prev = x_samples_ddim.detach().clone()
 
-                image = torch.clamp((batch["image"]+1.0)/2.0,
-                                    min=0.0, max=1.0)
-                mask = torch.clamp((batch["mask"]+1.0)/2.0,
-                                   min=0.0, max=1.0)
-                predicted_image = torch.clamp((x_samples_ddim+1.0)/2.0,
-                                              min=0.0, max=1.0)
+                    image = torch.clamp((batch["image"]+1.0)/2.0,
+                                        min=0.0, max=1.0)
+                    mask = torch.clamp((batch["mask"]+1.0)/2.0,
+                                       min=0.0, max=1.0)
+                    predicted_image = torch.clamp((x_samples_ddim+1.0)/2.0,
+                                                  min=0.0, max=1.0)
 
-                inpainted = (1-mask)*image+mask*predicted_image
-                inpainted = inpainted.cpu().numpy().transpose(0,2,3,1)[0]*255
-                Image.fromarray(inpainted.astype(np.uint8)).save(outpath)
+                    inpainted = (1-mask)*image+mask*predicted_image
+                    inpainted = inpainted.cpu().numpy().transpose(0,2,3,1)[0]*255
+                    Image.fromarray(inpainted.astype(np.uint8)).save(outpath)
+                    img_out[j*128:j*128+256, i*128:i*128+256, :] = inpainted
+            Image.fromarray(img_out).save(os.path.join(opt.outdir, 'tile.png'))
