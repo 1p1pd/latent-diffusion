@@ -1,0 +1,9 @@
+base:
+- models/ldm/tex256/config.yaml
+batch_size: 4
+custom_steps: 50
+eta: 1.0
+logdir: outputs/uncond_1
+n_samples: 100
+resume: models/ldm/tex256
+vanilla_sample: false
