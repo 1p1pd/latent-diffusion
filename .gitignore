@@ -127,6 +127,7 @@ MANIFEST
 /target/
 /src/
 /logs/
+/outputs/
 *.ckpt
 *.png
 *.jpg
