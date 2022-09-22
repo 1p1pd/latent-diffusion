@@ -1272,7 +1272,10 @@ class LatentDiffusion(DDPM):
         log["inputs"] = x
         log["reconstruction"] = xrec
         if self.model.conditioning_key is not None:
-            if hasattr(self.cond_stage_model, "decode"):
+            if self.cond_stage_key == 'masked_image':
+                xc = self.cond_stage_model.decode(c[:, :3, ...])
+                log["conditioning"] = xc
+            elif hasattr(self.cond_stage_model, "decode"):
                 xc = self.cond_stage_model.decode(c)
                 log["conditioning"] = xc
             elif self.cond_stage_key in ["caption"]:

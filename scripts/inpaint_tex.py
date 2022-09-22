@@ -100,11 +100,11 @@ if __name__ == "__main__":
                                                          size=c.shape[-2:])
                     c = torch.cat((c, cc[:, :1, ...]), dim=1)
 
-                    uc = model.get_learned_conditioning(batch["masked_image"])
-                    uc = torch.cat((uc, cc[:, :1, ...]), dim=1)
-                    # uc = torch.cat((uc,
-                    #                 torch.zeros_like(cc[:, :1, ...])), dim=1)
-                    uc = torch.cat((uc, cc[:, :1, ...]), dim=1)
+                    # uc = model.get_learned_conditioning(batch["masked_image"])
+                    # uc = torch.cat((uc, cc[:, :1, ...]), dim=1)
+
+                    uc = model.get_learned_conditioning(torch.zeros_like(batch["image"]))
+                    uc = torch.cat((uc, torch.ones_like(cc[:, :1, ...])), dim=1)
 
                     shape = (c.shape[1]-1,)+c.shape[2:]
                     samples_ddim, _ = sampler.sample(S=opt.steps,
@@ -112,7 +112,7 @@ if __name__ == "__main__":
                                                      batch_size=c.shape[0],
                                                      shape=shape,
                                                      unconditional_conditioning=uc,
-                                                     unconditional_guidance_scale=50.,
+                                                     unconditional_guidance_scale=1.1,
                                                      verbose=False)
                     x_samples_ddim = model.decode_first_stage(samples_ddim)
                     img_prev = x_samples_ddim.detach().clone()

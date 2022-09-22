@@ -159,7 +159,7 @@ def convsample_ddim_ipt(model, steps, shape, x_prev=None, eta=1.0, roll_dim=-1):
     bs = shape[0]
     shape = shape[1:]
     samples, intermediates = plms.sample(steps, batch_size=bs, shape=shape, eta=0., verbose=False,
-                                         x0=z, mask=mask, temperature=1., noise_dropout=.5, ddim_use_original_steps=True)
+                                         x0=z, mask=mask, temperature=1., noise_dropout=.5,)
 
     return samples, intermediates
 
