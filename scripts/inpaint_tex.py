@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from main import instantiate_from_config
 from ldm.models.diffusion.ddim import DDIMSampler
+from ldm.models.diffusion.plms import PLMSSampler
 
 
 def make_batch(image, img_path, device):
@@ -71,14 +72,14 @@ if __name__ == "__main__":
 
     config = OmegaConf.load("models/ldm/inpainting_tex/config.yaml")
     model = instantiate_from_config(config.model)
-    model.load_state_dict(torch.load("logs/2022-09-14T15-30-04_tex-ldm-vq-f4-noattn/checkpoints/last.ckpt")["state_dict"],
+    model.load_state_dict(torch.load("/home/yifan1/Desktop/latent-diffusion/logs/2022-09-14T15-30-04_tex-ldm-vq-f4-noattn/checkpoints/last.ckpt")["state_dict"],
                           strict=False)
 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     model = model.to(device)
     sampler = DDIMSampler(model)
 
-    n_img = 7
+    n_img = 5
     img_prev = None
     os.makedirs(opt.outdir, exist_ok=True)
     img_out = np.zeros((256 + 128 * (n_img - 1), 256 + 128 * (n_img - 1), 3), dtype=np.uint8)
@@ -99,11 +100,19 @@ if __name__ == "__main__":
                                                          size=c.shape[-2:])
                     c = torch.cat((c, cc[:, :1, ...]), dim=1)
 
+                    uc = model.get_learned_conditioning(batch["masked_image"])
+                    uc = torch.cat((uc, cc[:, :1, ...]), dim=1)
+                    # uc = torch.cat((uc,
+                    #                 torch.zeros_like(cc[:, :1, ...])), dim=1)
+                    uc = torch.cat((uc, cc[:, :1, ...]), dim=1)
+
                     shape = (c.shape[1]-1,)+c.shape[2:]
                     samples_ddim, _ = sampler.sample(S=opt.steps,
                                                      conditioning=c,
                                                      batch_size=c.shape[0],
                                                      shape=shape,
+                                                     unconditional_conditioning=uc,
+                                                     unconditional_guidance_scale=50.,
                                                      verbose=False)
                     x_samples_ddim = model.decode_first_stage(samples_ddim)
                     img_prev = x_samples_ddim.detach().clone()

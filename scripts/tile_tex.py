@@ -82,7 +82,8 @@ def make_batch(image, img_path, device):
         image = image.astype(np.float32)/255.0
         image = image[None].transpose(0,3,1,2)
         image = torch.from_numpy(image)
-        image = image[:, :, 272:528, 272:528]
+        # image = image[:, :, 272:528, 272:528]
+        image = image[:, :, -256:, -256:]
     else:
         image = (image + 1.) / 2.
         image = torch.roll(image, 128, -1)
@@ -111,15 +112,31 @@ def convsample_ddim_ipt(model, steps, shape, x_prev=None, eta=1.0, roll_dim=-1):
         shape = shape[1:]
         samples, intermediates = plms.sample(steps, batch_size=bs, shape=shape, eta=0., verbose=False,)
         return samples, intermediates
-    else:
+    elif not isinstance(x_prev, list):
         x = x_prev.detach()
         x = torch.clamp(x, -1., 1.)
-        x = torch.roll(x, x.shape[roll_dim] // 2, dims=roll_dim)
+        # x = torch.roll(x, x.shape[roll_dim] // 2, dims=roll_dim)
         encoder_posterior = model.encode_first_stage(x)
+        z = model.get_first_stage_encoding(encoder_posterior).detach()
+        z = z.tile((bs, 1, 1, 1))
+    else:
+        z_s = []
+        for x in x_prev:
+            x = torch.clamp(x, -1., 1.)
+            encoder_posterior = model.encode_first_stage(x)
+            z = model.get_first_stage_encoding(encoder_posterior).detach()
+            z_s += [z.tile((bs, 1, 1, 1))]
+        z = torch.cat((z_s[0], z_s[1]), dim=-1)
 
-    z = model.get_first_stage_encoding(encoder_posterior).detach()
-    z = z.tile((bs, 1, 1, 1))
-    # z = torch.roll(z, z.shape[roll_dim] // 2, dims=roll_dim)
+        b, h, w = z_s[2].shape[0], z_s[2].shape[2], z_s[2].shape[3]
+        z_n = torch.randn((b, 3, h, w), device=model.device)
+        z_b = torch.cat((z_s[2], z_n), dim=-1)
+        z = torch.cat((z, z_b), dim=-2)
+
+    if roll_dim in (-1, -2):
+        b, h, w = z.shape[0], z.shape[2], z.shape[3]
+        z_n = torch.randn((b, 3, h, w), device=model.device)
+        z = torch.cat((z, z_n), dim=roll_dim)
 
     b, h, w = z.shape[0], z.shape[2], z.shape[3]
     mask = torch.ones(b, h, w).to(model.device)
@@ -128,6 +145,8 @@ def convsample_ddim_ipt(model, steps, shape, x_prev=None, eta=1.0, roll_dim=-1):
         mask[:, :, w//2:] = 0.
     elif roll_dim == -2:
         mask[:, h//2:, :] = 0.
+    elif roll_dim == 0:
+        mask[:, h//2:, w//2:] = 0.
     mask = mask[:, None, ...]
 
     # ddim = DDIMSampler(model)
@@ -140,7 +159,7 @@ def convsample_ddim_ipt(model, steps, shape, x_prev=None, eta=1.0, roll_dim=-1):
     bs = shape[0]
     shape = shape[1:]
     samples, intermediates = plms.sample(steps, batch_size=bs, shape=shape, eta=0., verbose=False,
-                                         x0=z, mask=mask, )
+                                         x0=z, mask=mask, temperature=1., noise_dropout=.5, ddim_use_original_steps=True)
 
     return samples, intermediates
 
@@ -181,40 +200,66 @@ def run(model, logdir, batch_size=50, vanilla=False, custom_steps=None, eta=None
     n_saved = len(glob.glob(os.path.join(logdir,'*.png')))
     logs = {'sample': None}
 
-    n_w = 7
-    n_samples = n_w ** 2
+    n_w = 5
+    custom_steps = 50
     img_tile = torch.zeros((3, 256 + 128 * (n_w - 1), 256 + 128 * (n_w - 1)), dtype=torch.float32, device=model.device)
     batch_size = 1
 
-    for i in range(n_w):
-        for j in range(n_w):
-            # if j > 0:
-            #     continue
-            # if i == 1 and j == 0:
-            #     img_tile_vis = custom_to_pil(img_tile[:, i*128-128:i*128+128, j*128:j*128+256])
-            #     imgpath = os.path.join(logdir, f"test_{i}_{j}.png")
-            #     img_tile_vis.save(imgpath)
+    for j in range(n_w):
+        i = 0
+        if j == 0:
+            logs = make_convolutional_sample(model, batch_size=batch_size, x_prev=None,
+                                             vanilla=vanilla, custom_steps=custom_steps,
+                                             eta=eta)
+            img_tile[:, :256, :256] = logs['sample'][0].clone().detach()
+        else:
+            patch = img_tile[None, :, :256, j * 128:(j + 1) * 128].clone().detach()
+            logs = make_convolutional_sample(model, batch_size=batch_size,
+                                             x_prev=patch,
+                                             vanilla=vanilla, custom_steps=custom_steps, roll_dim=-1,
+                                             eta=eta)
+            img_tile[:, :256, j * 128 + 128:j * 128 + 256] = logs['sample'][0, :, :, 128:].clone().detach()
+        n_saved = save_logs(logs, logdir, n_saved=n_saved, key="sample")
 
-            if i == 0 and j == 0:
-                logs = make_convolutional_sample(model, batch_size=batch_size, x_prev=None,
-                                                 vanilla=vanilla, custom_steps=custom_steps,
-                                                 eta=eta)
-            elif i == 0:
-                logs = make_convolutional_sample(model, batch_size=batch_size, x_prev=logs['sample'],
-                                                 vanilla=vanilla, custom_steps=custom_steps, roll_dim=-1,
-                                                 eta=eta)
-            elif i > 0:
-                logs = make_convolutional_sample(model, batch_size=batch_size,
-                                                 x_prev=img_tile[None, :, i*128-128:i*128+128, j*128:j*128+256].clone(),
-                                                 vanilla=vanilla, custom_steps=custom_steps, roll_dim=-2,
-                                                 eta=eta)
-            img_tile[:, i*128:i*128+256, j*128:j*128+256] = logs['sample'][0].clone().detach()
+    img_tile_vis = custom_to_pil(img_tile)
+    imgpath = os.path.join(logdir, f"tile_w.png")
+    img_tile_vis.save(imgpath)
+
+    for i in range(1, n_w):
+        j = 0
+        patch = img_tile[None, :, i * 128:(i + 1) * 128, :256].clone().detach()
+        logs = make_convolutional_sample(model, batch_size=batch_size,
+                                         x_prev=patch,
+                                         vanilla=vanilla, custom_steps=custom_steps, roll_dim=-2,
+                                         eta=eta)
+        # img_tile[:, i * 128:i * 128 + 256, j * 128:j * 128 + 256] = logs['sample'][0].clone().detach()
+        img_tile[:, i * 128 + 128:i * 128 + 256, :256] = logs['sample'][0, :, 128:, :].clone().detach()
+        n_saved = save_logs(logs, logdir, n_saved=n_saved, key="sample")
+
+    img_tile_vis = custom_to_pil(img_tile)
+    imgpath = os.path.join(logdir, f"tile_wh.png")
+    img_tile_vis.save(imgpath)
+
+    for i in range(n_w - 1):
+        for j in range(n_w - 1):
+            patch = [img_tile[None, :, (i + 1) * 128:(i + 2) * 128, (j + 1) * 128:(j + 2) * 128].clone().detach(),
+                     img_tile[None, :, (i + 1) * 128:(i + 2) * 128, (j + 2) * 128:(j + 3) * 128].clone().detach(),
+                     img_tile[None, :, (i + 2) * 128:(i + 3) * 128, (j + 1) * 128:(j + 2) * 128].clone().detach()]
+            patch_vis = img_tile[:, (i + 1) * 128:(i + 3) * 128, (j + 1) * 128:(j + 3) * 128].clone().detach()
+            img_tile_vis = custom_to_pil(patch_vis)
+            imgpath = os.path.join(logdir, f"patch_{i}_{j}.png")
+            img_tile_vis.save(imgpath)
+            logs = make_convolutional_sample(model, batch_size=batch_size,
+                                             x_prev=patch,
+                                             vanilla=vanilla, custom_steps=custom_steps, roll_dim=0,
+                                             eta=eta)
+            img_tile[:, (i + 2) * 128:(i + 1) * 128 + 256, (j + 2) * 128:(j + 1) * 128 + 256] = \
+                logs['sample'][0, :, 128:, 128:].clone().detach()
             n_saved = save_logs(logs, logdir, n_saved=n_saved, key="sample")
 
     img_tile_vis = custom_to_pil(img_tile)
     imgpath = os.path.join(logdir, f"tile.png")
     img_tile_vis.save(imgpath)
-
 
 
     print(f"sampling of {n_saved} images finished in {(time.time() - tstart) / 60.:.2f} minutes.")
