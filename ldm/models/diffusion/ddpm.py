@@ -695,11 +695,6 @@ class LatentDiffusion(DDPM):
                 pos_x, pos_y = self.compute_latent_shifts(batch)
                 c = {'pos_x': pos_x, 'pos_y': pos_y}
         out = [z, c]
-        if return_first_stage_outputs:
-            xrec = self.decode_first_stage(z)
-            out.extend([x, xrec])
-        if return_original_cond:
-            out.append(xc)
         if self.cond_stage_key == 'masked_image':
             cc = super().get_input(batch, 'mask').to(self.device)
             cc = torch.nn.functional.interpolate(cc, size=c.shape[-2:])
@@ -707,6 +702,11 @@ class LatentDiffusion(DDPM):
                 cc = cc[:bs]
             c = torch.cat((c, cc[:, :1, :, :]), dim=1)
             out = [z, c]
+        if return_first_stage_outputs:
+            xrec = self.decode_first_stage(z)
+            out.extend([x, xrec])
+        if return_original_cond:
+            out.append(xc)
         return out
 
     @torch.no_grad()
