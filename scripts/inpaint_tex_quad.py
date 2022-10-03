@@ -100,7 +100,7 @@ if __name__ == "__main__":
     config_path = '/home/yifan1/Desktop/latent-diffusion/models/ldm/inpainting_tex/tex-ldm-vq-f4-ipt.yaml'
     ckpt_path = '/home/yifan1/Desktop/latent-diffusion/logs/2022-09-21T21-36-41_tex-ldm-vq-f4-ipt/checkpoints/last.ckpt'
 
-    config_path = '/home/yifan1/Desktop/latent-diffusion/models/ldm/inpainting_tex/tex-ldm-vq-f4-ipt.yaml'
+    config_path = '/home/yifan1/Desktop/latent-diffusion/models/ldm/inpainting_tex/tex-ldm-kl-4-ipt.yaml'
     ckpt_path = '/home/yifan1/Desktop/latent-diffusion/logs/2022-09-21T21-36-41_tex-ldm-vq-f4-ipt/checkpoints/last.ckpt'
 
     config = OmegaConf.load(config_path)
