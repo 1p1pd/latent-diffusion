@@ -97,14 +97,20 @@ if __name__ == "__main__":
     )
     opt = parser.parse_args()
 
-    config = OmegaConf.load("/home/yifan1/Desktop/latent-diffusion/models/ldm/inpainting_tex/tex-ldm-vq-f4-ipt.yaml")
+    config_path = '/home/yifan1/Desktop/latent-diffusion/models/ldm/inpainting_tex/tex-ldm-vq-f4-ipt.yaml'
+    ckpt_path = '/home/yifan1/Desktop/latent-diffusion/logs/2022-09-21T21-36-41_tex-ldm-vq-f4-ipt/checkpoints/last.ckpt'
+
+    config_path = '/home/yifan1/Desktop/latent-diffusion/models/ldm/inpainting_tex/tex-ldm-vq-f4-ipt.yaml'
+    ckpt_path = '/home/yifan1/Desktop/latent-diffusion/logs/2022-09-21T21-36-41_tex-ldm-vq-f4-ipt/checkpoints/last.ckpt'
+
+    config = OmegaConf.load(config_path)
     model = instantiate_from_config(config.model)
-    model.load_state_dict(torch.load("/home/yifan1/Desktop/latent-diffusion/logs/2022-09-21T21-36-41_tex-ldm-vq-f4-ipt/checkpoints/last.ckpt")["state_dict"],
+    model.load_state_dict(torch.load(ckpt_path)["state_dict"],
                           strict=False)
 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     model = model.to(device)
-    sampler = DDIMSampler(model)
+    sampler = PLMSSampler(model)
 
     n_img = 7
     n_saved = 0
