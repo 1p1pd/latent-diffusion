@@ -15,11 +15,12 @@ def make_batch(image, img_path, device):
         image = image.astype(np.float32)/255.0
         image = image[None].transpose(0,3,1,2)
         image = torch.from_numpy(image)
-        image = image[:, :, -356:-100, -356:-100]
+        # image = image[:, :, -356:-100, -356:-100]
+        image = image[:, :, :256, :256]
 
         mask = torch.zeros_like(image)
 
-        mask = torch.ones_like(image)
+        # mask = torch.ones_like(image)
         # masked_image = (1. - mask) * image
         #
         # batch = {"image": image, "mask": mask, "masked_image": masked_image}
@@ -97,22 +98,23 @@ if __name__ == "__main__":
     )
     opt = parser.parse_args()
 
+    opt.outdir = '/home/yifan1/Desktop/latent-diffusion/outputs/inpainting_results_quad_kl'
     config_path = '/home/yifan1/Desktop/latent-diffusion/models/ldm/inpainting_tex/tex-ldm-vq-f4-ipt.yaml'
     ckpt_path = '/home/yifan1/Desktop/latent-diffusion/logs/2022-09-21T21-36-41_tex-ldm-vq-f4-ipt/checkpoints/last.ckpt'
 
-    config_path = '/home/yifan1/Desktop/latent-diffusion/models/ldm/inpainting_tex/tex-ldm-kl-4-ipt.yaml'
-    ckpt_path = '/home/yifan1/Desktop/latent-diffusion/logs/2022-09-21T21-36-41_tex-ldm-vq-f4-ipt/checkpoints/last.ckpt'
+    # config_path = '/home/yifan1/Desktop/latent-diffusion/models/ldm/inpainting_tex/tex-ldm-kl-4-ipt.yaml'
+    # ckpt_path = '/home/yifan1/Desktop/latent-diffusion/logs/2022-09-30T12-29-58_tex-ldm-kl-4-ipt/checkpoints/last.ckpt'
 
     config = OmegaConf.load(config_path)
     model = instantiate_from_config(config.model)
-    model.load_state_dict(torch.load(ckpt_path)["state_dict"],
-                          strict=False)
+    model.load_state_dict(torch.load(ckpt_path)["state_dict"], strict=False)
 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     model = model.to(device)
+    # sampler = DDIMSampler(model)
     sampler = PLMSSampler(model)
 
-    n_img = 7
+    n_img = 20
     n_saved = 0
     uc_scale = 3.0
     img_prev = None
@@ -127,12 +129,13 @@ if __name__ == "__main__":
 
 
                 # encode masked image and concat downsampled mask
-                c = model.cond_stage_model.encode(batch["masked_image"])
+                # c = model.cond_stage_model.encode(batch["masked_image"])
+                c = model.get_learned_conditioning(batch["masked_image"])
                 cc = torch.nn.functional.interpolate(batch["mask"],
                                                      size=c.shape[-2:])
                 c = torch.cat((c, cc[:, :1, ...]), dim=1)
 
-                if i < 0:
+                if i == 0:
                     shape = (c.shape[1] - 1,) + c.shape[2:]
                     samples_ddim, _ = sampler.sample(S=opt.steps,
                                                      conditioning=c,
@@ -174,7 +177,8 @@ if __name__ == "__main__":
                 batch = make_batch_v(img_up, device=device)
 
                 # encode masked image and concat downsampled mask
-                c = model.cond_stage_model.encode(batch["masked_image"])
+                # c = model.cond_stage_model.encode(batch["masked_image"])
+                c = model.get_learned_conditioning(batch["masked_image"])
                 cc = torch.nn.functional.interpolate(batch["mask"],
                                                      size=c.shape[-2:])
                 c = torch.cat((c, cc[:, :1, ...]), dim=1)
@@ -214,7 +218,8 @@ if __name__ == "__main__":
                     batch = make_batch_q(img_up, device=device)
 
                     # encode masked image and concat downsampled mask
-                    c = model.cond_stage_model.encode(batch["masked_image"])
+                    # c = model.cond_stage_model.encode(batch["masked_image"])
+                    c = model.get_learned_conditioning(batch["masked_image"])
                     cc = torch.nn.functional.interpolate(batch["mask"],
                                                          size=c.shape[-2:])
                     c = torch.cat((c, cc[:, :1, ...]), dim=1)

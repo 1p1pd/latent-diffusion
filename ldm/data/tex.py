@@ -6,6 +6,8 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
 
+from PIL import ImageFile
+ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 class TexBase(Dataset):
     def __init__(self,
@@ -69,20 +71,24 @@ class TexQuadBase(Dataset):
         self.img_path = img_path
         self.size = size
         self.n_img = n_img
+        image = Image.open(self.img_path)
+        if not image.mode == "RGB":
+            image = image.convert("RGB")
+        self.img = image
 
     def __len__(self):
         return self.n_img
 
     def __getitem__(self, i):
         data_aug = transforms.Compose(
-            [transforms.RandomCrop(self.size),
+            [transforms.RandomCrop(364),
              transforms.RandomHorizontalFlip(),
              transforms.RandomVerticalFlip(),
+             transforms.RandomRotation(180, resample=PIL.Image.BILINEAR),
+             transforms.CenterCrop(256),
              ])
-        image = Image.open(self.img_path)
-        if not image.mode == "RGB":
-            image = image.convert("RGB")
-        image = data_aug(image)
+
+        image = data_aug(self.img.copy())
         image = np.array(image).astype(np.float32) / 255.
 
         mask = np.zeros((self.size, self.size, 3), dtype=np.float32)
