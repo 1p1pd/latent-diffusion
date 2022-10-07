@@ -129,6 +129,7 @@ MANIFEST
 /logs/
 /outputs/
 /taming/
+*.out
 *.ckpt
 *.png
 *.jpg
