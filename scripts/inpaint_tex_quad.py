@@ -20,8 +20,8 @@ def make_batch(image, img_path, device):
 
         mask = torch.zeros_like(image)
 
-        # mask = torch.ones_like(image)
-        # masked_image = (1. - mask) * image
+        mask = torch.ones_like(image)
+        masked_image = (1. - mask) * image
         #
         # batch = {"image": image, "mask": mask, "masked_image": masked_image}
         # for k in batch:
@@ -93,17 +93,20 @@ if __name__ == "__main__":
     parser.add_argument(
         "--steps",
         type=int,
-        default=50,
+        default=200,
         help="number of ddim sampling steps",
     )
     opt = parser.parse_args()
 
-    opt.outdir = '/home/yifan1/Desktop/latent-diffusion/outputs/inpainting_results_quad_norot'
-    config_path = '/home/yifan1/Desktop/latent-diffusion/models/ldm/inpainting_tex/tex-ldm-vq-f4-ipt.yaml'
-    ckpt_path = '/home/yifan1/Desktop/latent-diffusion/logs/2022-10-03T17-12-41_tex-ldm-vq-f4-ipt/checkpoints/last.ckpt'
+    opt.outdir = '/home/yifan1/Desktop/latent-diffusion/outputs/inpainting_results_quad_rot_kl_1.25'
+    # config_path = '/home/yifan1/Desktop/latent-diffusion/models/ldm/inpainting_tex/tex-ldm-vq-f4-ipt.yaml'
+    # ckpt_path = '/home/yifan1/Desktop/latent-diffusion/logs/2022-10-03T17-12-41_tex-ldm-vq-f4-ipt/checkpoints/last.ckpt'
 
     # config_path = '/home/yifan1/Desktop/latent-diffusion/models/ldm/inpainting_tex/tex-ldm-vq-f4-ipt.yaml'
     # ckpt_path = '/home/yifan1/Desktop/latent-diffusion/logs/2022-10-05T21-16-45_tex-ldm-vq-f4-ipt/checkpoints/last.ckpt'
+
+    config_path = '/home/yifan1/Desktop/latent-diffusion/models/ldm/inpainting_tex/tex-ldm-kl-f8-ipt.yaml'
+    ckpt_path = '/home/yifan1/Desktop/latent-diffusion/logs/2022-10-07T20-27-00_tex-ldm-vq-f8-ipt/checkpoints/last.ckpt'
 
     # config_path = '/home/yifan1/Desktop/latent-diffusion/models/ldm/inpainting_tex/tex-ldm-kl-4-ipt.yaml'
     # ckpt_path = '/home/yifan1/Desktop/latent-diffusion/logs/2022-09-30T12-29-58_tex-ldm-kl-4-ipt/checkpoints/last.ckpt'
@@ -117,9 +120,9 @@ if __name__ == "__main__":
     # sampler = DDIMSampler(model)
     sampler = PLMSSampler(model)
 
-    n_img = 20
+    n_img = 7
     n_saved = 0
-    uc_scale = 3.0
+    uc_scale = 1.25
     img_prev = None
     os.makedirs(opt.outdir, exist_ok=True)
     img_out = np.zeros((256 + 128 * (n_img - 1), 256 + 128 * (n_img - 1), 3), dtype=np.uint8)
@@ -138,7 +141,7 @@ if __name__ == "__main__":
                                                      size=c.shape[-2:])
                 c = torch.cat((c, cc[:, :1, ...]), dim=1)
 
-                if i == 0:
+                if i < 0:
                     shape = (c.shape[1] - 1,) + c.shape[2:]
                     samples_ddim, _ = sampler.sample(S=opt.steps,
                                                      conditioning=c,
